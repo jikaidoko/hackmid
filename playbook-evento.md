@@ -370,6 +370,14 @@ gate de QA (15% de la rúbrica) — antes de tocar testnet o el proof server.
 
 *Punto de partida para la hora 0 — ajustar en el momento, no copiar a ciegas.*
 
+**⚠️ Regla para las cuatro sesiones: referencia de solo lectura, nunca working
+directory.** El repo del evento se crea en una carpeta nueva y separada de
+`amparo-prep`. Cada prompt de abajo indica archivos puntuales para leer como
+conocimiento — no "leé toda la carpeta". Cerrar cada prompt con esta línea
+(ya incluida abajo): *"Esto es referencia para entender el patrón — regla
+net-new del evento: nada de acá se copia literal, todo se reescribe de cero
+en el repo nuevo."*
+
 **R1a — `admitCase`:**
 > Vamos a escribir un circuito Compact desde cero (compactc 0.31.0, language
 > 0.23.0, runtime @midnight-ntwrk/compact-runtime 0.16.0). Es la primitiva de
@@ -380,9 +388,17 @@ gate de QA (15% de la rúbrica) — antes de tocar testnet o el proof server.
 > autoridad de la organización, que inserta la hoja y actualiza la root.
 > Patrón conceptual de referencia (NO copiar código de ningún repo): membership
 > proof tipo Semaphore — hoja opaca, inclusión probada sin revelar cuál.
-> Empecemos por el ledger y el constructor, después el circuito de admisión,
-> con tests de simulador (`createConstructorContext`/`createCircuitContext`)
-> antes de tocar el proof server.
+> Podés leer como referencia (no copiar): `amparo-prep/playbook-evento.md`
+> §4a y §8 (gotchas — el de `checkRoot()`/root congelada es crítico acá);
+> `amparo-prep/skills/midnight-compact/references/zk-patterns.md` y
+> `ledger-operations.md`; y el circuito ya compilado
+> `hofi-passport/contracts/midnight/identity_disclosure.compact` (el
+> membership proof más cercano a esto). Esto es referencia para entender el
+> patrón — regla net-new del evento: nada de acá se copia literal, todo se
+> reescribe de cero en el repo nuevo. Empecemos por el ledger y el
+> constructor, después el circuito de admisión, con tests de simulador
+> (`createConstructorContext`/`createCircuitContext`) antes de tocar el
+> proof server.
 
 **R1b — `registerFiling` + `proveRepeatFilings` (con doble salida A+B, §4):**
 > Circuito Compact desde cero. Depende de un `admittedRoot: MerkleTreeDigest`
@@ -407,8 +423,14 @@ gate de QA (15% de la rúbrica) — antes de tocar testnet o el proof server.
 > revisión".
 > Cuidado: comparación de umbral sin resta, `Uint` se ensancha al sumar
 > (`as Uint<32>` explícito), `sealed` es keyword reservado, todo param que se
-> escribe a ledger público necesita `disclose(...)`. Tests de simulador en
-> cada paso antes de avanzar al siguiente.
+> escribe a ledger público necesita `disclose(...)`. Podés leer como
+> referencia (no copiar): `amparo-prep/playbook-evento.md` §4b/§4d y §8
+> completo (los gotchas de `Map<K,Counter>` sin auto-init y `Uint<0..N>`
+> exclusivo aplican directo acá);
+> `amparo-prep/skills/midnight-expert/references/hofi-verified-in-practice.md`.
+> Esto es referencia para entender el patrón — regla net-new del evento: nada
+> de acá se copia literal, todo se reescribe de cero en el repo nuevo. Tests
+> de simulador en cada paso antes de avanzar al siguiente.
 
 **R2 — Frontend (Google Stitch):**
 > Necesito 3 pantallas de una dApp Midnight sobre denuncias ambientales, cada
@@ -426,7 +448,9 @@ gate de QA (15% de la rúbrica) — antes de tocar testnet o el proof server.
 > reportes, y un estado que cambia a "EN REVISIÓN" (con acento visual
 > distinto, ej. ámbar/rojo) cuando cruza el umbral — este cambio de estado en
 > vivo es el momento fuerte de la demo, dale protagonismo visual. Arrancá
-> integrando la vista 1 al wallet SDK desde el principio.
+> integrando la vista 1 al wallet SDK desde el principio. Referencia de
+> paleta/layout (no código a copiar): `amparo-prep/mockups/tres-vistas-boceto.html`
+> — el copy ahí sigue con el encuadre anterior, actualizalo al caso ambiental.
 
 **R3 — Producto/Pitch:**
 > Guion de pitch de 3 y 5 minutos para un jurado técnico (Midnight
@@ -439,7 +463,10 @@ gate de QA (15% de la rúbrica) — antes de tocar testnet o el proof server.
 > correcto (una institución/sitio puede ser transparente; una persona no).
 > Restricciones duras: nada de nombres/logos de terceros ni empresas/ríos
 > reales, nada que se lea como mensaje político-partidario, Sofía y el caso
-> explícitamente ficticios.
+> explícitamente ficticios. Leé como referencia (no copiar):
+> `amparo-prep/playbook-evento.md` §3 (guion), §10 (estructura completa) y
+> `hofi-protocol-cardano/docs/20-plan-mvp-amparo-hackathon-midnight.md` §12
+> (las restricciones del reglamento, con el detalle de por qué).
 
 ## 12. Riesgos y mitigaciones
 
