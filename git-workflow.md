@@ -1,8 +1,13 @@
 # Amparo — flujo de git del equipo
 
-> Repo: `origin` → `jikaidoko/hackmid` · rama troncal: **`master`** (no `main`).
-> Válido para este repo Y para cualquier otro del equipo (mismo patrón que ya
-> usa `hofi-protocol-cardano`/`hofi-passport`).
+> ⚠️ **Repo real de trabajo del hackathon:**
+> [`jikaidoko/midnight-hackathon-ba`](https://github.com/jikaidoko/midnight-hackathon-ba)
+> — ahí se abren ramas, se commitea el código net-new y se abren los PR.
+>
+> Este documento vive en `jikaidoko/hackmid` (carpeta de referencia/conocimiento
+> del equipo, `amparo-prep`), que **no es** el repo del evento — no se codea
+> acá. El flujo de abajo aplica igual en ambos, solo cambia el remoto contra
+> el que corren los comandos; rama troncal en los dos: **`master`** (no `main`).
 
 ## Regla de oro
 
