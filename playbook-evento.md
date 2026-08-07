@@ -342,7 +342,7 @@ gate de QA (15% de la rúbrica) — antes de tocar testnet o el proof server.
 ## 10. Estructura del pitch (10% + 15% + 5% de la rúbrica)
 
 1. El problema: la anonimización/el silencio institucional como ceguera de no
-   retorno + el cumplimiento auto-aseverado de las herramientas whistleblower
+   retorno + el cumplimiento auto-aseverado de las herramientas de reporte
    existentes.
 2. **Sofía** — la historia del caso ambiental (§3): un vertido industrial,
    sin empresas ni organismos reales, sin ángulo político-partidario.
