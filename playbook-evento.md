@@ -92,8 +92,10 @@ circuitos nuevos, más responsabilidad en uno ya planeado.
 
 ### 4a. `admitCase` — la primitiva de identidad (inspirada en `hofi-passport`)
 
-- Ledger: `admittedCases: MerkleTree<20, Bytes<32>>` + `admittedRoot:
-  MerkleTreeDigest` (root congelada, actualizada solo por este circuito).
+- Ledger: `admittedCases: HistoricMerkleTree<20, Bytes<32>>` — histórico, no
+  plano, para que las denuncias en vuelo no se invaliden con cada admisión
+  nueva (§8.3) — más `admittedRoot: MerkleTreeDigest`, que es un **espejo
+  display-only para la UI**: nadie verifica contra él (§8.3).
 - Circuito `admitCase(caseCommitment: Bytes<32>)`, gateado por la autoridad
   del organismo de control (un witness de firma/commitment de esa
   autoridad — el mismo patrón de membership proof que `identity_disclosure.compact`
@@ -104,9 +106,10 @@ circuitos nuevos, más responsabilidad en uno ya planeado.
 ### 4b. `registerFiling` — el núcleo, con doble salida (A + B)
 
 - **Entrada**: `caseCommitment`, `path: MerkleTreePath<20, Bytes<32>>`.
-- Prueba `path.leaf == caseCommitment` y `merkleTreePathRoot(path) ==
-  admittedRoot` (comparación PURA — nunca `.checkRoot()`, que solo acepta la
-  root *actual* y serializaría a todo el que registre — gotcha §8.3).
+- Prueba `path.leaf == caseCommitment` y la pertenencia al padrón con
+  `admittedCases.checkRoot(merkleTreePathRoot(path))` sobre el
+  `HistoricMerkleTree` de §4a. **NO contra `admittedRoot`**, que es un espejo
+  display-only que la autoridad escribe como parámetro libre — ver §8.3.
 - **Nullifier atado al PAR (identidad, caso)**: `H(dominio, subjectSecret,
   caseCommitment)`, contra un `Set<Bytes<32>>` de nullifiers gastados. Evita
   que la misma persona infle el contador de un caso reportándolo mil veces —
@@ -268,17 +271,44 @@ iba a medir/confirmar; se lee antes del evento, se reescribe de cero durante.*
   admite 0..6, no 7. El `.d.ts` generado no lo marca (erasure a `bigint`) —
   solo el simulador lo atrapa.
 
-### 8.3 El hallazgo que definió el diseño de §4
+### 8.3 Cómo se verifica pertenencia al padrón — CORREGIDO
 
-`MerkleTree.checkRoot()` acepta SOLO la root actual, nunca una histórica —
-cualquier inserción invalida el path de todos los demás miembros. Esto
-destruye cualquier diseño donde un cohorte prueba contra una foto tomada al
-abrir una ventana. **La solución**: congelar la root en un campo de ledger
-aparte (`admittedRoot`, en nuestro caso) y verificar por **comparación pura**
-(`merkleTreePathRoot(path) == admittedRoot`), no vía `.checkRoot()` — eso es
-lo que permite que `registerFiling` (4b) verifique contra el padrón de
-`admitCase` (4a) sin serializar a todos los que registran una denuncia el
-mismo período.
+> ⚠️ **Esta sección decía lo contrario hasta el 7-ago.** La versión vieja
+> mandaba congelar la root y comparar contra ella; construir sobre eso abre un
+> agujero de seguridad. Si leíste este documento antes, releé esto.
+
+**El problema, que sigue siendo válido:** `MerkleTree.checkRoot()` acepta SOLO
+la root actual. Con un `MerkleTree` plano, cada admisión nueva invalida el path
+de todos los casos ya admitidos y obliga a re-pedir el path antes de cada
+denuncia.
+
+**La solución que NO funciona** (lo que decía esta sección antes): congelar la
+root en un campo de ledger aparte y verificar por comparación pura,
+`merkleTreePathRoot(path) == admittedRoot`.
+
+No funciona porque **`root()` del ADT es runtime-only** (§8.2): el circuito no
+puede llamarlo, así que la root nueva entra a `admitCase` como un parámetro
+suelto que **ningún circuito puede atar al árbol real**. Verificar pertenencia
+contra ese campo deja que la autoridad declare cualquier root y valide
+cualquier path — y con eso se cae la garantía anti-spam entera, que es lo único
+que `admitCase` existe para dar.
+
+**La solución que sí funciona**, y la que está implementada en
+`case_admission.compact`: el padrón es un **`HistoricMerkleTree<20, Bytes<32>>`**,
+que acepta roots pasadas además de la actual. La pertenencia se verifica
+**siempre** con `admittedCases.checkRoot(merkleTreePathRoot(path))`. Eso resuelve
+el problema original —las denuncias en vuelo no se invalidan cuando entra una
+admisión nueva— sin depender de ningún valor que la autoridad pueda inventar.
+
+`admittedRoot` sobrevive, pero **solo como espejo display-only** para que la UI
+muestre la root cambiar en vivo. Nadie verifica contra él; el desvío entre
+espejo y árbol se detecta off-chain con `assertMirrorMatchesTree` en
+`case-registry.ts`.
+
+**Pendiente de integración:** `filing_registry.compact` (PR #2) se construyó
+contra un `admittedRoot` mockeado por constructor, porque `admitCase` todavía no
+había mergeado. Ese mock **no puede sobrevivir al merge** — el archivo lleva la
+nota en su encabezado.
 
 ### 8.4 El agujero de seguridad que motivó el circuito partido (§4)
 
@@ -382,14 +412,16 @@ en el repo nuevo."*
 > Vamos a escribir un circuito Compact desde cero (compactc 0.31.0, language
 > 0.23.0, runtime @midnight-ntwrk/compact-runtime 0.16.0). Es la primitiva de
 > admisión de casos de un canal de denuncias con privacidad. Necesito: un
-> ledger `admittedCases: MerkleTree<20, Bytes<32>>` + `admittedRoot:
-> MerkleTreeDigest` (root congelada, actualizada solo acá); un circuito
+> ledger `admittedCases: HistoricMerkleTree<20, Bytes<32>>` (histórico, §8.3)
+> + `admittedRoot: MerkleTreeDigest` como espejo display-only para la UI, que
+> ningún circuito usa para verificar (§8.3); un circuito
 > `admitCase(caseCommitment: Bytes<32>)` gateado por firma/commitment de
 > autoridad de la organización, que inserta la hoja y actualiza la root.
 > Patrón conceptual de referencia (NO copiar código de ningún repo): membership
 > proof tipo Semaphore — hoja opaca, inclusión probada sin revelar cuál.
 > Podés leer como referencia (no copiar): `amparo-prep/playbook-evento.md`
-> §4a y §8 (gotchas — el de `checkRoot()`/root congelada es crítico acá);
+> §4a y §8 (gotchas — §8.3, sobre cómo verificar pertenencia, es crítico acá y
+> fue CORREGIDO el 7-ago);
 > `amparo-prep/skills/midnight-compact/references/zk-patterns.md` y
 > `ledger-operations.md`; y el circuito ya compilado
 > `hofi-passport/contracts/midnight/identity_disclosure.compact` (el
@@ -408,8 +440,9 @@ en el repo nuevo."*
 > **Paso 1 (núcleo):** estado privado (contador de denuncias por identidad,
 > witness `subjectSecret`); `registerFiling(caseCommitment, path:
 > MerkleTreePath<20, Bytes<32>>)` que prueba `path.leaf == caseCommitment` y
-> `merkleTreePathRoot(path) == admittedRoot` (comparación PURA, nunca
-> `.checkRoot()`), gasta un nullifier `H(dominio, subjectSecret,
+> la pertenencia con `admittedCases.checkRoot(merkleTreePathRoot(path))` —
+> NUNCA contra `admittedRoot`, que es un espejo display-only (§8.3
+> corregido) —, gasta un nullifier `H(dominio, subjectSecret,
 > caseCommitment)` — atado al PAR identidad+caso, no solo al caso — y si todo
 > pasa incrementa el contador PRIVADO; `proveRepeatFilings(N: Uint<32>)` que
 > prueba `contador >= N` sin revelarlo, con su propio nullifier de un solo
