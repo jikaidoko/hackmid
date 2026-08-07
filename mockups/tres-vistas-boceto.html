@@ -1,0 +1,92 @@
+<!--
+  Boceto conceptual de las tres vistas de Amparo (denunciante / juzgado / ledger
+  público), generado como referencia de layout y paleta — NO es código de producto.
+
+  Usa variables CSS del entorno de preview de Claude (--surface-2, --text-accent,
+  etc.) y la fuente de íconos Tabler cargada por ese entorno; fuera de ahí puede
+  verse sin estilos. Sirve para UNA cosa: alimentar los prompts de Google Stitch
+  con la composición, la paleta (violeta noche / ámbar cálido / terminal gris) y
+  el tono de cada vista. No copiar tal cual al repo del evento (regla net-new).
+
+  Paleta de referencia (para escribirla en los prompts de Stitch en hex, ya que
+  Stitch no conoce las CSS vars del preview):
+    Vista 1 — Denunciante:  fondo #26215C (violeta noche), acentos #FAEEDA/#EF9F27 (ámbar)
+    Vista 2 — Juzgado:      superficie neutra clara, acento verde éxito (#EAF3DE/#3B6D11)
+    Vista 3 — Ledger:       fondo #2C2C2A (terminal), texto #B4B2A9, foco #F1EFE8
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Amparo — boceto de las 3 vistas</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #f1efe8; padding: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; max-width: 900px; margin: 0 auto; }
+  .card { background: #fff; border: 0.5px solid #d3d1c7; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .foot { font-size: 11px; text-align: center; color: #888780; margin: 0; padding: 6px; border-top: 0.5px solid #d3d1c7; }
+</style>
+</head>
+<body>
+<div class="grid">
+
+  <div class="card">
+    <div style="background:#26215C; padding:10px 14px;">
+      <span style="font-size:13px; font-weight:500; color:#CECBF6;">Amparo</span>
+      <span style="font-size:11px; color:#AFA9EC; float:right;">Marta · seudónimo</span>
+    </div>
+    <div style="padding:14px; display:flex; flex-direction:column; gap:10px; flex:1;">
+      <div style="text-align:center; padding:8px 0 2px;">
+        <div style="width:64px; height:64px; border-radius:50%; background:#FAEEDA; border:2px solid #EF9F27; display:flex; align-items:center; justify-content:center; margin:0 auto; font-size:28px;">🎙</div>
+        <p style="font-size:12px; color:#5F5E5A; margin:8px 0 0;">Tu voz es tu llave</p>
+      </div>
+      <div style="background:#FAEEDA; border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:#633806;">Denuncia sellada</span><span>🔒</span>
+      </div>
+      <div style="background:#FAEEDA; border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:#633806;">Denuncia sellada</span><span>🔒</span>
+      </div>
+      <div style="background:#FAEEDA; border:1.5px solid #EF9F27; border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; font-weight:500; color:#633806;">Nueva denuncia</span><span>+</span>
+      </div>
+      <p style="font-size:12px; text-align:center; color:#5F5E5A; margin:auto 0 0;">Tu historia: <b>3 selladas</b> · solo vos</p>
+    </div>
+    <p class="foot">1 · Denunciante — cálida, privada</p>
+  </div>
+
+  <div class="card">
+    <div style="border-bottom:0.5px solid #d3d1c7; padding:10px 14px;">
+      <span style="font-size:13px; font-weight:500;">Verificación</span>
+      <span style="font-size:11px; color:#888780; float:right;">Juzgado / RRHH / compliance</span>
+    </div>
+    <div style="padding:14px; display:flex; flex-direction:column; justify-content:center; gap:12px; flex:1;">
+      <p style="font-size:12px; color:#5F5E5A; margin:0;">Solicitud: medida de protección urgente</p>
+      <div style="border:0.5px solid #97C459; background:#EAF3DE; border-radius:8px; padding:14px; text-align:center;">
+        <div style="font-size:26px;">✓</div>
+        <p style="font-size:13px; font-weight:500; color:#27500A; margin:6px 0 0;">≥ 3 denuncias previas</p>
+        <p style="font-size:13px; font-weight:500; color:#27500A; margin:2px 0 0;">VERDADERO</p>
+      </div>
+      <div style="font-size:11px; color:#888780; text-align:center; line-height:1.6;">
+        Identidad — no revelada<br>Fechas — no reveladas<br>Contenido — no revelado
+      </div>
+    </div>
+    <p class="foot">2 · Verificador — el vacío es el diseño</p>
+  </div>
+
+  <div class="card">
+    <div style="background:#2C2C2A; padding:10px 14px;">
+      <span style="font-family: monospace; font-size:12px; color:#B4B2A9;">ledger público · en vivo</span>
+    </div>
+    <div style="background:#2C2C2A; padding:14px; flex:1; font-family: monospace; font-size:12px; line-height:2; color:#B4B2A9;">
+      <div>período <span style="color:#F1EFE8;">2026-08</span></div>
+      <div>casos admitidos <span style="color:#F1EFE8;">14</span></div>
+      <div>pruebas emitidas <span style="color:#F1EFE8;">2</span></div>
+      <div>personas visibles <span style="color:#F1EFE8;">0</span></div>
+      <div style="margin-top:10px; color:#888780;">tx a1f3…9c04 ▓▓▓▓▓▓▓▓</div>
+      <div style="color:#888780;">tx 7bd2…e611 ▓▓▓▓▓▓▓▓</div>
+    </div>
+    <p class="foot">3 · Ledger — frío, solo agregados</p>
+  </div>
+
+</div>
+</body>
+</html>
