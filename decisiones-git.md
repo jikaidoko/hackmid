@@ -229,12 +229,24 @@ una persona sobre un árbol que nadie más vio (ver #5).
 repositorios públicos** y ya estaba habilitado. El costo de no tenerlo era
 íntegramente de oportunidad.
 
-**Límite declarado.** La etapa barata —typecheck, build y los guards de fuente—
-corre sin problema. Los tests que necesitan el artefacto compilado del contrato
-requieren el compilador en el runner, y **eso hay que verificarlo antes de
-prometerlo**. Si no se puede, queda documentado como límite conocido con la
-receta manual en su lugar: un límite escrito es una decisión; un límite no
-escrito es un olvido que alguien va a descubrir cuando le duela.
+**🔴 Un supuesto que se cayó al medirlo.** El plan daba por hecho que había una
+"etapa barata" —typecheck y build— que corría sin el compilador de contratos.
+**Es falso.** Medido escondiendo el artefacto compilado y corriendo las dos
+cosas: el build del frontend y el typecheck de contratos fallan los dos con
+`TS2307: Cannot find module './managed/...'`. La nota previa de que "el frontend
+typechequea sin el contrato compilado" vale para dos módulos aislados, no para
+el build completo.
+
+Lo que **sí** corre sin compilador es la instalación de los dos árboles de
+dependencias y el guard de wasm — que no es poco: es el control de la clase de
+bug más cara del proyecto, y hasta ahora sólo corría cuando alguien se acordaba.
+
+**Cómo quedó, y por qué en dos jobs.** El job `ci` es el medido y es el que
+gatea. El job `contracts` instala el compilador con el instalador oficial, pinea
+la versión y corre typecheck y suite completa — y arranca **con
+`continue-on-error: true`, sin gatear nada**. Un gate que nunca se vio pasar no
+es un gate: se promueve a obligatorio recién después de verlo verde en varios
+PRs. La alternativa era prometer una cobertura que no había corrido nunca.
 
 ---
 
