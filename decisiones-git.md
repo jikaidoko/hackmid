@@ -72,6 +72,31 @@ que mergea no siempre es el que sabe si hay algo apilado.
 proyecto la traza técnica —qué se midió, qué mutante murió— vive en los mensajes
 de commit; el squash la borraba.
 
+### 2.b · Borrar la rama del padre es parte de mergear la pila
+
+**Agregado el 10-ago-2026, después de tropezarlo mergeando estos mismos
+documentos.** No supersede a la entrada 2: es un segundo modo de falla, distinto.
+
+**Qué pasó.** Se mergeó el padre con `gh pr merge <n> --merge`, sin
+`--delete-branch`, siguiendo una instrucción escrita en este mismo trabajo. La
+rama del padre quedó viva. GitHub **re-apunta un PR hijo a la base del padre sólo
+cuando esa rama se borra al mergear**, así que el hijo siguió apuntándole — y al
+mergearlo, su contenido entró **en la rama del padre, que ya estaba mergeada**.
+
+**Lo caro es el diagnóstico, no el error.** El PR hijo quedó en `MERGED`, con su
+merge commit y su tilde. Todo indicaba éxito. La troncal simplemente no tenía los
+archivos. Medido: `git log --oneline origin/master..origin/<rama-del-padre>`
+devolvió **6 commits** que nadie sabía que estaban afuera.
+
+**Qué se descartó.** Arreglarlo con un push directo a la troncal, que era un solo
+comando. Se descartó porque la regla no tiene excepción "es para arreglar algo":
+un bypass justificado una vez es el que después se cita. Se arregló con otro PR.
+
+**Familia.** Es la misma de siempre en este registro: **un estado de éxito que no
+mide lo que uno cree que mide.** `MERGED` significa "este PR se cerró mergeando",
+no "esto llegó a la troncal" — igual que `SUCCESS` con `continue-on-error` no
+significa que los pasos pasaron, y que `MERGEABLE` no significa que compile.
+
 ---
 
 ## 3 · Un worktree por rama, y un script que lo siembre

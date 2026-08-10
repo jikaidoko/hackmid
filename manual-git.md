@@ -265,7 +265,7 @@ dónde volver. Ante la duda, **merge commit**.
 ## 7. PRs apilados
 
 Una rama que sale de otra rama en vez de la troncal. Sirve para partir un cambio
-grande en revisiones digeribles, y tiene tres reglas.
+grande en revisiones digeribles, y tiene cuatro reglas.
 
 **1. Declaralo en el cuerpo del PR.** Qué rama es la base y con qué método se
 mergea. Quien mergea no puede adivinarlo.
@@ -273,7 +273,33 @@ mergea. Quien mergea no puede adivinarlo.
 **2. Mergeá de abajo hacia arriba, con merge commit.** Primero el padre; después
 actualizás el hijo y lo mergeás.
 
-**3. Para propagar un rebase por toda la pila, `--update-refs`:**
+**3. 🔴 Al mergear el padre, BORRÁ SU RAMA en el mismo comando.**
+
+```bash
+gh pr merge <padre> --merge --delete-branch     # el flag NO es cosmético
+gh pr view <hijo> --json baseRefName            # confirmá que dice la troncal
+```
+
+Éste es el que muerde, y no se parece al problema del squash. GitHub re-apunta un
+PR hijo a la base del padre **sólo cuando la rama del padre se borra al mergear**.
+Si queda viva, el hijo sigue apuntándole — y al mergearlo, **su contenido entra en
+una rama que ya está mergeada, no en la troncal**.
+
+Lo caro es cómo se ve: el PR hijo queda en **`MERGED`**, con su tilde violeta y
+su merge commit. Todo dice que salió bien. La troncal simplemente no tiene el
+código, y nadie lo nota hasta que alguien va a buscar el archivo.
+
+**Cómo confirmarlo** (y hacelo siempre después de mergear una pila):
+
+```bash
+git fetch --prune
+git log --oneline origin/<troncal>..origin/<rama-del-padre>
+```
+
+Si eso devuelve commits, **la pila quedó afuera**. Se arregla con un PR más, del
+padre a la troncal. No pushees directo.
+
+**4. Para propagar un rebase por toda la pila, `--update-refs`:**
 
 ```bash
 git rebase --update-refs origin/<troncal>
