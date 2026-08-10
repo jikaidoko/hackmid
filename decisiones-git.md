@@ -241,12 +241,24 @@ Lo que **sí** corre sin compilador es la instalación de los dos árboles de
 dependencias y el guard de wasm — que no es poco: es el control de la clase de
 bug más cara del proyecto, y hasta ahora sólo corría cuando alguien se acordaba.
 
-**Cómo quedó, y por qué en dos jobs.** El job `ci` es el medido y es el que
-gatea. El job `contracts` instala el compilador con el instalador oficial, pinea
-la versión y corre typecheck y suite completa — y arranca **con
-`continue-on-error: true`, sin gatear nada**. Un gate que nunca se vio pasar no
-es un gate: se promueve a obligatorio recién después de verlo verde en varios
-PRs. La alternativa era prometer una cobertura que no había corrido nunca.
+**Cómo quedó, y por qué en dos jobs.** El job `ci` instala los dos árboles y
+corre el guard de wasm. El job `contracts` instala el compilador con el
+instalador oficial, pinea la versión, compila con `--skip-zk` y corre typecheck y
+suite completa.
+
+`contracts` **entró sin gatear** (`continue-on-error: true`), porque su paso de
+toolchain nunca había corrido en un runner y **un gate que nadie vio pasar no es
+un gate**. Pasó los nueve pasos en su primera corrida —**64 tests, 64 pass, 0
+fail**, en 36 segundos— así que se le sacó el `continue-on-error` y ahora
+bloquea. La secuencia importa más que el resultado: se prometió lo medido, se
+midió, y recién ahí se prometió más.
+
+🔴 **Y hay una trampa en el medio que casi la deja pasar.** Con
+`continue-on-error: true` el job **reporta `SUCCESS` aunque sus pasos fallen**.
+Mirar el estado del job no probaba nada; hubo que pedir las conclusiones **paso
+por paso** y el conteo de tests del log. Es la misma familia que el `EXIT=0` de
+un pipe que termina en `tail`: **el exit que ves no siempre es el del comando que
+te importa.**
 
 ---
 
