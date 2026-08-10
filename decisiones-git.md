@@ -204,8 +204,20 @@ mismo archivo.
 **Cuándo habría que revisar esta decisión**: si el disparador tuviera que salir
 de GitHub hacia un sistema que no es GitHub. Ahí un integrador se justifica.
 
-**Límite conocido**: en cuenta gratuita, el auto-add de Projects admite **un
-workflow y un repositorio**. Alcanza para un repo; no escala a varios.
+**🔴 Una afirmación que hubo que degradar.** En la primera versión de esta
+entrada decía, como hecho, que en cuenta gratuita el auto-add de Projects admite
+"un workflow y un repositorio". Al ir a la fuente, **eso sale de un reporte de
+usuario en el foro de la comunidad, cerrado sin respuesta de GitHub**. La
+documentación no lo dice, y lo que sí documenta son límites de *items por
+proyecto*, no de cantidad de proyectos.
+
+Queda como **incierto declarado**, no como número: en el manual va con la
+instrucción de medirlo en la cuenta propia. Registrar la degradación importa
+tanto como el dato — un número sin fuente, escrito con confianza, después se cita
+como si estuviera verificado.
+
+**Familia de esto**: es el mismo error que este registro le reprocha al resto del
+flujo — afirmar sin medir. Vale igual cuando lo comete el documento.
 
 ---
 

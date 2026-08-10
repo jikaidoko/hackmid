@@ -342,8 +342,8 @@ sobre una base que ya no existe.
 | **`.github/CODEOWNERS`** | Pide review **automáticamente** al marcar el PR *ready for review*. También es el mapa de dueños de la sección 5. |
 | **Template de PR** | Obliga a declarar la base apilada, el método de merge y **cómo se verificó**. |
 | **CI (GitHub Actions)** | Convierte "verde" en algo que no depende de la palabra de una persona. |
-| **GitHub Projects** | Un tablero con el estado de cada PR. Se puebla solo con el workflow *Auto-add to project*. |
-| **App oficial de GitHub para Slack** | DM directo al reviewer cuando le piden review: `/github subscribe <owner>/<repo> pulls reviews` |
+| **GitHub Projects** | Un tablero con el estado de cada PR y el historial de quién hizo qué. Se puebla solo con el workflow *Auto-add to project*. |
+| **App oficial de GitHub para Slack** | DM directo al reviewer cuando le piden review. |
 
 🔴 **Dos detalles que hacen la diferencia entre que funcione y que sea
 decorativo:**
@@ -355,6 +355,10 @@ decorativo:**
   Eso es una feature: abrí en draft mientras trabajás, marcá ready cuando querés
   ojos encima.
 
+Y uno de despliegue que sorprende la primera vez: **CODEOWNERS se lee de la rama
+BASE**, no de la rama del PR. O sea que **el PR que lo introduce no lo dispara**.
+No está roto: recién empieza a funcionar con el PR siguiente.
+
 **Por qué no hay un integrador externo (Zapier y parientes).** Todo lo de arriba
 es nativo y gratis. Un integrador agregaría un tercer sistema con un token del
 repo para duplicar lo que ya funciona: un punto de falla más y un secreto más
@@ -362,16 +366,28 @@ para manejar mal. Tendría sentido sólo para disparar algo que *no* es de GitHu
 
 ---
 
-## 12. Guardrails del remoto
+## 12. Puesta en marcha en un repo nuevo
 
-Un documento no impide nada. Estas tres opciones sí, y se aplican una vez:
+Un documento no impide nada; estos pasos sí. Se hacen una vez, en este orden,
+porque hay dos que dependen de que algo haya corrido antes.
+
+### 12.1 · Apagar el squash y limpiar ramas al mergear
 
 ```bash
-# el squash queda apagado (mata las ramas apiladas) y las ramas se borran solas
 gh api -X PATCH repos/<owner>/<repo> \
   -F allow_squash_merge=false -F delete_branch_on_merge=true
+```
 
-# la troncal deja de aceptar push directo
+### 12.2 · Dejar que el CI corra una vez
+
+Commiteá `.github/workflows/ci.yml`, abrí el primer PR y dejá que termine.
+**Hasta que un check no corrió, GitHub no conoce su nombre y no se lo puede
+exigir.** Anotá los nombres exactos de los jobs: son los `contexts` del paso
+siguiente.
+
+### 12.3 · Proteger la troncal
+
+```bash
 gh api -X PUT repos/<owner>/<repo>/branches/<troncal>/protection --input - <<'JSON'
 { "required_status_checks": { "strict": true, "contexts": ["ci"] },
   "enforce_admins": false,
@@ -382,22 +398,67 @@ gh api -X PUT repos/<owner>/<repo>/branches/<troncal>/protection --input - <<'JS
 JSON
 ```
 
-Verificalo, no lo asumas — sin protección la API contesta `404`:
+Verificalo, no lo asumas — **sin protección la API contesta `404`**:
 
 ```bash
 gh api repos/<owner>/<repo>/branches/<troncal>/protection
 ```
 
-⚠️ `required_status_checks` sólo se puede fijar **después** de que el CI corrió
-al menos una vez y GitHub conoce el nombre del check. Son dos pasos.
-
 ⚠️ `enforce_admins: false` es deliberado: deja al admin destrabar una emergencia.
 Un guard que bloquea el flujo legítimo más frecuente **enseña a saltearlo**, y un
 bypass entrenado es peor que no tener guard.
 
-**Lo que ningún guard puede impedir**, y por eso vive en este documento: pisar
-trabajo ajeno sin commitear (§3), medir verde sobre el working tree (§4), y
-escribir dos veces la misma función (§5).
+### 12.4 · Autorizar la escritura en GitHub Projects
+
+`gh` no nace con permiso para escribir en Projects: el scope `project` **no** está
+en el set por defecto (`gist`, `read:org`, `repo`). Sin él, cualquier intento
+falla con `your authentication token is missing required scopes`.
+
+```bash
+gh auth refresh --hostname github.com -s project -c
+```
+
+- `--hostname` es **obligatorio** si el comando no corre en una terminal
+  interactiva; sin él aborta con `--hostname required when not running
+  interactively`.
+- `-s` **agrega** el scope, no reemplaza los que ya tenés.
+- `-c` copia al portapapeles el código de un solo uso.
+
+Es un flujo de *device code*: imprime el código, abre el browser y **se queda
+esperando**. Por eso conviene correrlo en una terminal real. Verificá después:
+
+```bash
+gh auth status              # tiene que listar 'project'
+gh project list --owner <owner>
+```
+
+Con eso ya se puede crear el proyecto y activar el workflow **Auto-add to
+project**, que inscribe cada PR sin que nadie se acuerde.
+
+⚠️ **Sobre los límites del plan gratuito, sé honesto con lo que sabés.** No hay
+límite documentado en la *cantidad de proyectos*; lo que sí está documentado son
+límites de *items por proyecto*. Circula un reporte de que en cuenta gratuita el
+auto-add admite **un workflow y un repositorio**, pero es un reporte de usuario
+**sin respuesta de GitHub**: no lo tomes como número. **Medilo en tu cuenta**
+intentando el segundo y viendo qué contesta.
+
+### 12.5 · Conectar Slack
+
+Instalá la app oficial de GitHub en el workspace y, desde el canal:
+
+```
+/github subscribe <owner>/<repo> pulls reviews
+```
+
+`pulls` trae la actividad de PRs al canal; `reviews` agrega los reviews y
+comentarios. Además de lo del canal, la app **manda DM directo** a quien tenga un
+review pedido — que es el aviso que importa.
+
+### 12.6 · Lo que ningún paso de acá arriba puede impedir
+
+Y por eso vive en este documento y no en una configuración: pisar trabajo ajeno
+sin commitear (§3), medir verde sobre el working tree (§4), y escribir dos veces
+la misma función (§5).
 
 ---
 
