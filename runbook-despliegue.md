@@ -26,7 +26,11 @@ confundirlos:**
    código del SDK: escanea desde génesis, sin `birthday`. Esto NO se hace el
    día del evento — tiene que estar hecho de antes, en la máquina que
    efectivamente se va a usar (ver el punto crítico abajo).
-2. **Reconexión de una wallet ya sincronizada: minutos**, gracias a una
+2. **Reconexión de una wallet ya sincronizada: ~11 minutos** (medido el 7-ago:
+   **643s**, restaurando estado del 26-jul — 11 días de gap). El orden de
+   magnitud correcto frente a las 2-3hs del arranque en frío, pero **no son
+   "un par de minutos"**: arrancarlo 5 minutos antes de mostrar algo llega
+   tarde. Esto se logra gracias a una
    mitigación real que encontramos en `hofi-passport` (patrón portado de
    `hofi-consensus F1`): cada sub-wallet serializa su estado a
    `.wallet-state/` cada ~30s, y al reiniciar hace `restore(blob)` — sync
@@ -34,6 +38,15 @@ confundirlos:**
    confirma, con código y no solo con anécdota, que el costo grande es
    **único**. Sigue aplicando el resto de la lección: la red pública a veces
    tambalea y el margen se puede estirar — arrancarlo temprano igual.
+
+   ⚠️ **El save tarda 30s en dispararse.** Un script que sincroniza y sale antes
+   de eso **no persiste nada** y el próximo arranque vuelve a ser desde génesis,
+   sin que nada avise. Medido en el repo del evento: las corridas locales
+   terminan en ~2s y `.wallet-state/` no se creaba nunca. En preprod el sync
+   dura mucho más que un tick, así que no muerde — pero si alguien "prueba que
+   la persistencia anda" contra local y sale en verde, **no probó nada**. Para
+   ejercitarla de verdad: `MN_WALLET_PERSIST_MS=200`, y confirmar que el
+   siguiente arranque diga que está restaurando.
 
 **✅ Punto de logística CONFIRMADO (7-ago): el despliegue del evento corre en
 la misma máquina que ya tiene `.wallet-state/`.** Esto no es un detalle menor
@@ -68,11 +81,22 @@ apenas se llega, no cinco minutos antes de mostrarle algo a alguien.**
 
 - [ ] `npm run mn:up` apenas alguien se sienta a trabajar en la integración
   (R2, o quien esté libre) — no esperar a necesitarlo.
-- [ ] Esperar los tres healthchecks del compose (no asumir que "arrancó" =
-  "está sano"): `node` expone `/health` cada 2s (hasta 20 reintentos),
-  `indexer` depende de `node` sano y chequea su propio archivo `running`
-  cada 10s. Verificar con `docker compose -f docker-compose.midnight.yml ps`
-  que los tres servicios digan `healthy`, no solo `Up`.
+- [ ] Esperar los healthchecks del compose (no asumir que "arrancó" = "está
+  sano"): `node` expone `/health` cada 2s (hasta 20 reintentos), `indexer`
+  depende de `node` sano y chequea su propio archivo `running` cada 10s.
+  ⚠️ **CORREGIDO (7-ago, medido): `docker compose ps` marca DOS `healthy`, nunca
+  tres.** El `proof-server` no tiene —ni puede tener— healthcheck: la imagen es
+  **distroless**, no trae shell ni cliente HTTP, así que ninguna forma de
+  `healthcheck` de compose puede ejecutarse adentro (verificado: `docker exec`
+  falla con `"sh": executable file not found`). Se queda en `Up` para siempre,
+  ande bien o mal. **Esperar tres `healthy` no termina nunca** — y a las 3am eso
+  se lee como "la red no levanta" y termina en un `mn:down` sobre un stack sano.
+  El chequeo que sí responde por los tres corre desde el host:
+
+  ```bash
+  npm run mn:health                     # los 3 por HTTP
+  npm run mn:health -- --ws-seconds=30  # + estabilidad de subscriptions
+  ```
 - [x] ~~Confirmar que `.wallet-state/` está presente en la máquina que se va
   a usar el 7-8 de agosto~~ **CONFIRMADO — es la misma máquina (§0).** Si en
   algún momento cambia la máquina del despliegue, este ítem vuelve a abrirse.
@@ -86,79 +110,101 @@ apenas se llega, no cinco minutos antes de mostrarle algo a alguien.**
 - [ ] **Verificar el `.env` antes de asumir cuál red se está usando** — un
   seed apuntado a la red equivocada, o mal derivado, es indistinguible de un
   problema de red hasta que se revisa (fue la causa raíz real detrás de doc 21).
-- [ ] **Pinnear `@midnight-ntwrk/wallet-sdk` en `>=1.2.0` en el `package.json`
-  del repo del evento** — la 1.2 resolvió el bug de OOM que doc 21 documentó.
-  El repo de referencia (`hofi-protocol-cardano`, monorepo HoFi) todavía tiene
-  fijado `^1.1.0`: **no copiar ese pin** al armar el proyecto del evento el
-  7-ago — sería reintroducir un bug ya resuelto.
+- [x] ~~**Pinnear `@midnight-ntwrk/wallet-sdk` en `>=1.2.0`** en el repo del
+  evento~~ **HECHO (7-ago)**: quedó `">=1.2.0 <2"`, resuelve 1.2.0. El aviso era
+  correcto y está verificado: el lock del monorepo resuelve **1.1.0 exacto**
+  (el `^1.1.0` no alcanza para sacarlo de ahí), así que copiarlo habría
+  reintroducido el OOM.
+- [ ] 🆕 **Contar las copias de los dos paquetes wasm** — mordió el 7-ago y es de
+  los caros porque **typecheck y tests quedan en verde**: ninguno arma una tx.
+
+  ```bash
+  npm ls @midnight-ntwrk/ledger-v8 @midnight-ntwrk/onchain-runtime-v3
+  ```
+
+  Cada uno tiene que reportar **una sola** versión resuelta. Dos copias = dos
+  instancias wasm, cada una con sus propias clases, y el objeto que arma una
+  falla el chequeo de tipo de la otra: `expected instance of LedgerParameters`
+  y `expected instance of StateValue`, **desde adentro de una dependencia, en
+  medio del deploy**, sin nada que apunte a la duplicación. Pasa porque
+  `midnight-js-protocol` los pinea exactos mientras el resto pide `^`. En el
+  repo del evento ya está cerrado con `overrides`; si alguien toca dependencias,
+  **el chequeo es este comando, no que compile**.
 - [ ] Proof server respondiendo: primera prueba de la sesión descarga
   ~33 MB de params públicos desde S3 (lento la primera vez). El volumen
   `.zk-params/` ya persiste esto entre corridas — si alguien borró esa
   carpeta o es una máquina nueva, dar tiempo a esa descarga ANTES de la demo,
   no durante.
-- [ ] `check-wallet` (`npm run check-wallet` en `contracts-midnight`, adaptado
-  al proyecto del evento) contra la red local, temprano, para confirmar que
-  la wallet de génesis sincroniza y expone sus claves — no esperar al primer
-  deploy real para descubrir un problema de conectividad.
+- [ ] `npm run check-wallet` (en `contracts/` del repo del evento) contra la red
+  local, temprano, para confirmar que la wallet de génesis sincroniza y expone
+  sus claves — no esperar al primer deploy real para descubrir un problema de
+  conectividad.
+- [ ] **Correr los tres en orden, no saltar al deploy.** `mn:health` dice que los
+  servicios contestan · `check-wallet` dice que ESE seed arma una wallet que
+  sincroniza · `deploy` es el primer paso que genera una prueba. En ese orden,
+  cada falla nombra su causa; salteando, un indexer que todavía arrancaba se lee
+  como un error de balanceo.
 
 ---
 
 ## 2. Camino garantizado: red LOCAL standalone
 
+✅ **Camino verificado de punta a punta el 7-ago** en `midnight-hackathon-ba`
+(rama `feat/midnight-network-harness`): red local sana → wallet sincronizada →
+deploy con prueba ZK del constructor → `admitCase` con gate de autoridad →
+espejo alineado contra el árbol real. **No hace falta `.env` para local**: los
+defaults del código ya apuntan ahí.
+
 ```bash
 # 1) Levantar la red (una vez por sesión de trabajo; queda corriendo)
-cd contracts-midnight/   # o el nombre del paquete Midnight del repo del evento
+cd contracts/
 npm run mn:up
 
-# 2) Confirmar salud (no asumir — verificar)
-docker compose -f docker-compose.midnight.yml ps
-# node, indexer y proof-server deben decir "healthy"
+# 2) Confirmar salud — los TRES, desde el host (ver §1: ps solo marca dos)
+npm run mn:health
 
-# 3) .env del proyecto apuntando a LOCAL (undeployed) — valores de referencia:
-#    MN_NETWORK=undeployed
-#    MN_PROOF_SERVER_URL=http://127.0.0.1:6300
-#    MN_INDEXER_URL=http://127.0.0.1:8088/api/v4/graphql
-#    MN_INDEXER_WS_URL=ws://127.0.0.1:8088/api/v4/graphql/ws
-#    MN_NODE_URL=http://127.0.0.1:9944
-#    MN_WALLET_SEED=   (vacío = usa la wallet de génesis pre-fondeada, 0x00…01)
+# 3) Compilar el contrato (WSL: el compilador no está en el PATH de Windows)
+wsl -e bash -lc 'export PATH="$HOME/.local/bin:$PATH"; \
+  cd /mnt/c/Users/<usuario>/dev/midnight-hackathon-ba/contracts; npm run compile'
 
-# 4) Compilar el contrato del evento (WSL)
-wsl -e bash -lc 'export PATH="$HOME/.local/bin:$PATH"; cd /mnt/c/.../<repo-evento>/; \
-  compact compile src/<circuito>.compact src/managed/<circuito>'
-
-# 5) Tests de simulador (rápido, sin proof server — el gate de QA, 15% rúbrica)
+# 4) Tests de simulador (rápido, sin proof server — el gate de QA, 15% rúbrica)
 npm test
 
-# 6) check-wallet, luego deploy real (usa proof server + node locales)
+# 5) Wallet, luego deploy real (usa proof server + node locales)
 npm run check-wallet
-npm run deploy        # o el script que el proyecto del evento defina
+npm run deploy
+
+# 6) Ejercitar el circuito gateado de punta a punta
+npm run admit-case
 
 # Al cerrar la sesión (NO en medio de la demo):
 npm run mn:down        # -v borra los volúmenes — perder el estado es reiniciar de cero
 ```
 
-**Health-probe reusable:** `preprod-health.mjs` (en
-`hofi-protocol-cardano/packages/contracts-midnight/scripts/`) también sirve
-para LOCAL apuntándolo con env vars:
+**Apuntar a otra red por UNA corrida, sin tocar el `.env`:** las variables del
+shell **ganan** sobre el `.env` (verificado). Sirve para no editar un archivo
+que tiene el seed de otra red:
 
 ```bash
-MN_PREPROD_RPC_URL=http://127.0.0.1:9944 \
-MN_PREPROD_INDEXER_URL=http://127.0.0.1:8088/api/v4/graphql \
-node scripts/preprod-health.mjs --ws-seconds=30
+MN_NETWORK=undeployed MN_NODE_URL=http://127.0.0.1:9944 npm run check-wallet
 ```
 
-Útil como chequeo de 30 segundos antes de un ensayo de demo — no reemplaza
-mirar `docker compose ps`, lo complementa.
+Y el `.wallet-state/` no se pisa entre redes: el directorio se llama
+`<red>-<hash del seed>`, así que una corrida local convive con la de preprod.
+
+**Probe de 30 segundos antes de un ensayo:** `npm run mn:health -- --ws-seconds=30`
+sostiene las subscriptions abiertas, que es de lo que depende el sync de una
+wallet y ningún chequeo HTTP observa.
 
 ---
 
 ## 3. Preprod — viable, con margen de resync
 
-Usar la wallet ya sincronizada (seed verificado — §1 último ítem). Si no se
-usó en varios días, arrancar el resync temprano y darle su margen (minutos,
-puede estirarse). No usarla recién sincronizada para la demo en vivo frente
-al jurado sin haberla probado antes ese mismo día — para lo que no admite
-sorpresas, red LOCAL (§2).
+Usar la wallet ya sincronizada (seed verificado — §1). Si no se usó en varios
+días, arrancar el resync temprano y darle su margen: **~11 min medidos el
+7-ago**, y puede estirarse. No usarla recién sincronizada para la demo en vivo
+frente al jurado sin haberla probado antes ese mismo día — para lo que no
+admite sorpresas, red LOCAL (§2).
 
 ```bash
 # .env apuntando a preprod (valores de referencia — confirmar contra el
@@ -170,15 +216,19 @@ sorpresas, red LOCAL (§2).
 #   MN_NODE_URL=https://rpc.preprod.midnight.network
 #   MN_WALLET_SEED=<el seed corregido — nunca en el repo ni en el chat>
 
-npm run proof-server &      # el proof server SIEMPRE corre local, aunque la red sea preprod
+npm run proof-server        # SOLO ese servicio: el proof server corre local aunque
+                            # la red sea preprod. NO usar mn:up, que además levanta
+                            # un nodo local y te deja dos cadenas en los mismos puertos.
 npm run check-wallet        # confirma sync antes de cualquier deploy — no asumir
-npm run deploy               # o el script del proyecto del evento
+npm run deploy
 ```
 
 Chequeo rápido de salud antes de arrancar (no reemplaza `check-wallet`):
 
 ```bash
-node scripts/preprod-health.mjs --ws-seconds=30
+npm run mn:health -- --ws-seconds=30 \
+  --node=https://rpc.preprod.midnight.network \
+  --indexer=https://indexer.preprod.midnight.network/api/v4/graphql
 ```
 
 ⚠️ **Este probe mide subscriptions livianas, no el sync pesado de la
@@ -194,7 +244,13 @@ doc 21).
 | Síntoma | Causa probable | Acción |
 |---|---|---|
 | `docker compose ps` no marca `healthy` a los ~30s | Primera vez, descargando imágenes o params ZK | Esperar; no cancelar. Si pasan >3 min sin cambio, `mn:down` y `mn:up` de nuevo |
-| Wallet "syncing" que no avanza (LOCAL o preprod) | Resync normal en curso — Docker recién reiniciado, host con hipo de red, o preprod tras días de inactividad | Darle el margen de §1 (minutos, puede estirarse). No cancelar a los pocos segundos |
+| **El `proof-server` nunca pasa de `Up` a `healthy`** | ✅ **Es lo esperado, no una falla.** La imagen es distroless: ningún healthcheck puede correr adentro | `npm run mn:health` — chequea los tres desde el host. **No reiniciar el stack por esto** |
+| `expected instance of LedgerParameters` / `expected instance of StateValue`, en medio del deploy | Dos copias de un paquete wasm ⇒ dos instancias, cada una con sus clases | `npm ls @midnight-ntwrk/ledger-v8 @midnight-ntwrk/onchain-runtime-v3` — cada uno tiene que dar UNA versión. Se cierra con `overrides` (§1) |
+| `Cannot read properties of undefined (reading 'ctor')` al desplegar | Se pasó una instancia del contrato donde va el **descriptor** (`CompiledContract.make(...)` + witnesses + assets) | Revisar el nombre de la opción: es `compiledContract`, y un cast `as never` sobre el objeto de opciones **tapa el error de tipos** |
+| `Password must contain at least 3 of...` en medio del deploy | La contraseña del estado privado no cumple la política (≥16 chars, 3 de 4 clases) | Ajustar `MN_PRIVATE_STATE_PASSWORD`. Falla en la primera escritura, o sea ya arrancado el deploy |
+| `Contract address not set. Call setContractAddress()` | Se escribió el estado privado a mano antes de encontrar el contrato | No escribirlo aparte: va como `initialPrivateState` de `findDeployedContract`, que es quien lo guarda |
+| Wallet "syncing" que no avanza (LOCAL o preprod) | Resync normal en curso — Docker recién reiniciado, host con hipo de red, o preprod tras días de inactividad | Darle el margen de §1 (~11 min medidos, puede estirarse). No cancelar a los pocos segundos |
+| El script dice `syncing from genesis. This is the slow path` cuando esperabas minutos | No hay estado en `.wallet-state/` para esa combinación red+seed | Confirmar que el directorio `<red>-<hash>` existe. Si cambió el seed, es otra wallet: el resync es completo y no hay atajo |
 | Wallet "syncing" que **nunca** avanza, `CloseEvent`/`ErrorEvent` repetidos, sin mejorar con tiempo | Seed mal derivado o mal pegado en `MN_WALLET_SEED` (causa raíz real de doc 21) | Verificar el seed contra la fuente correcta — no asumir problema de red antes de revisar esto |
 | `FATAL ERROR: JavaScript heap out of memory` | `wallet-sdk` < 1.2 (bug conocido, parcheado) | Confirmar el pin en `package.json` (§1) — no debería aparecer con `>=1.2.0` |
 | Archivos en 0 bytes / el compilador no encuentra el `.compact` | Sandbox Windows↔mount desincronizado (trampa conocida del proyecto) | `wc -c` al archivo antes de confiar en el build; reintentar el compile |
@@ -228,19 +284,23 @@ es el fallback del fallback. Nunca debuggear infraestructura frente al jurado.
   publicar, y necesita revisión**: mezcla una causa nuestra (seed mal
   derivado) con una causa real de Midnight (bug de OOM, ya resuelto en SDK
   1.2). No publicar sin separar ambas cosas.
-- `hofi-protocol-cardano/packages/contracts-midnight/scripts/preprod-health.mjs`
-  — probe HTTP+WS, reusable contra local con env vars (§2).
-- `hofi-protocol-cardano/packages/contracts-midnight/docker-compose.midnight.yml`
-  + `standalone.env` — la definición exacta de la red local.
-- `hofi-passport/contracts/midnight/scripts/check-wallet.ts` (agregado 7-ago,
-  `npm run check-wallet`) — construye la wallet y espera sync, sin firmar ni
-  enviar nada. Espejo del script homónimo del monorepo.
-- `hofi-passport/contracts/midnight/src/midnight/providers.ts` (líneas
-  ~59-65, ~206-217) — el mecanismo real de `restoreOrStart`/`.wallet-state/`
-  que hace que el segundo sync sea de minutos. Patrón "ODATANO/NIGHTGATE",
-  portado de `hofi-consensus F1`. Vale la pena releerlo si el contrato del
-  evento necesita su propia interacción de wallet — el patrón es el mismo,
-  se reescribe de cero (regla net-new), no se copia.
+- 🆕 `midnight-hackathon-ba/contracts/scripts/mn-health.mjs` — **el probe que
+  usa el evento** (`npm run mn:health`). Cubre los tres servicios desde el host,
+  incluido el proof server que ningún healthcheck de compose puede mirar. Acepta
+  `--node=`, `--indexer=`, `--proof=` y `--ws-seconds=N`, así que sirve igual
+  contra local y contra preprod.
+- 🆕 `midnight-hackathon-ba/contracts/.env.example` — la referencia de
+  configuración al día, con los defaults locales y el bloque de preprod.
+- 🆕 `midnight-hackathon-ba/contracts/docker-compose.midnight.yml` +
+  `standalone.env` — **la red local del evento**, escrita de cero. Documenta en
+  el propio archivo por qué el proof server no lleva healthcheck.
+- 🆕 `midnight-hackathon-ba/contracts/src/midnight/providers.ts` — el mecanismo
+  de `restoreOrStart` / `.wallet-state/` que hace que el segundo sync sea de
+  minutos, reescrito para este repo (regla net-new). Ahí vive también el
+  backpressure del sync y el cap que evita el OOM.
+- Referencias de patrón (conocimiento, **no** código a copiar — regla net-new):
+  `hofi-protocol-cardano/packages/contracts-midnight/` y
+  `hofi-passport/contracts/midnight/`.
 - `amparo-prep/amparo-dry-run-playbook.md` — el patrón del contrato en sí
   (conocimiento, no código a copiar — regla net-new).
 - `hofi-protocol-cardano/docs/20-plan-mvp-amparo-hackathon-midnight.md` —
