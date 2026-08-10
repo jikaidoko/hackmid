@@ -97,6 +97,26 @@ mide lo que uno cree que mide.** `MERGED` significa "este PR se cerró mergeando
 no "esto llegó a la troncal" — igual que `SUCCESS` con `continue-on-error` no
 significa que los pasos pasaron, y que `MERGEABLE` no significa que compile.
 
+**🔴 Cola de esta entrada: la primera verificación que se escribió no corría.**
+Decía `git log origin/<troncal>..origin/<rama-del-padre>` — y la regla que la
+acompaña te manda a **borrar esa rama** al mergear. Al ejecutarla en serio devolvió
+`fatal: ambiguous argument ... unknown revision`.
+
+La corrección es anotar el **SHA** del hijo antes de mergear y preguntar después
+`git merge-base --is-ancestor "$SHA" origin/<troncal>`: un SHA sigue siendo
+alcanzable cuando la rama que lo apuntaba ya no existe. Y la lección, que es más
+grande que el comando:
+
+> **Una verificación no puede depender de un estado que el paso anterior
+> destruyó.** Al escribir un chequeo, preguntate contra qué lo vas a medir
+> **cuando el trabajo ya esté hecho**, no cuando todavía está a medias.
+
+Con una segunda, del mismo día y del mismo tipo: el primer intento de probar la
+receta nueva usó como caso negativo un `HEAD` que estaba parado justo en la
+troncal, así que **dio verde por construcción**. Un test que no puede dar rojo no
+prueba nada — es el mismo agujero que este registro le reprocha a los mocks y a
+los guards, cometido sobre sí mismo.
+
 ---
 
 ## 3 · Un worktree por rama, y un script que lo siembre

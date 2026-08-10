@@ -289,15 +289,29 @@ Lo caro es cómo se ve: el PR hijo queda en **`MERGED`**, con su tilde violeta y
 su merge commit. Todo dice que salió bien. La troncal simplemente no tiene el
 código, y nadie lo nota hasta que alguien va a buscar el archivo.
 
-**Cómo confirmarlo** (y hacelo siempre después de mergear una pila):
+**Cómo confirmarlo.** Anotá el SHA del hijo **antes** de mergear, y preguntá
+después si la troncal lo contiene:
 
 ```bash
-git fetch --prune
-git log --oneline origin/<troncal>..origin/<rama-del-padre>
+SHA=$(git rev-parse origin/<rama-del-hijo>)     # ANTES de mergear
+
+git fetch --prune                                # después
+git merge-base --is-ancestor "$SHA" origin/<troncal> \
+  && echo "entró" || echo "🔴 QUEDÓ AFUERA"
 ```
 
-Si eso devuelve commits, **la pila quedó afuera**. Se arregla con un PR más, del
-padre a la troncal. No pushees directo.
+Si quedó afuera se arregla con un PR más, del padre a la troncal. **No pushees
+directo**: la regla no tiene excepción "es para arreglar algo".
+
+> ⚠️ **Por qué así y no comparando ramas.** La forma obvia sería
+> `git log origin/<troncal>..origin/<rama-del-padre>` — y **no corre**, porque la
+> regla 3 acaba de decirte que borres esa rama. Es un error propio, cometido
+> escribiendo esta sección: **una verificación no puede depender de un estado que
+> el paso anterior destruyó.** Un SHA sigue siendo alcanzable después de borrar
+> la rama que lo apuntaba; un nombre de rama, no.
+>
+> Cuando escribas un chequeo, preguntate contra qué lo vas a medir **cuando el
+> trabajo ya esté hecho**, no cuando todavía está a medias.
 
 **4. Para propagar un rebase por toda la pila, `--update-refs`:**
 
