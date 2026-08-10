@@ -118,13 +118,41 @@ cachés caras de reconstruir, artefactos compilados.
 
 **Ése es el motivo real por el que la gente termina compartiendo un solo checkout
 y pisándose.** El worktree limpio es la práctica correcta; sembrarlo a mano es lo
-caro. Por eso el repo debería tener un script que lo siembre, y ese script tiene
-una regla no negociable:
+caro. Por eso el repo debería tener un script que lo siembre.
 
-> 🔴 **Si falta un item requerido, el script falla RUIDOSO.** No lo saltea.
-> Un `.env` ausente en silencio no da error: da una app corriendo contra la
-> configuración equivocada, con datos que se ven válidos. El silencio de un guard
-> es indistinguible de su aprobación.
+#### Clasificá por costo de recuperación, no por "hace falta"
+
+El error al escribir ese script es tratar todo lo gitignoreado como una lista
+plana de cosas necesarias. **Casi todo es necesario**; esa pregunta no discrimina
+nada. La que sí decide es **cuánto cuesta recuperarlo**, y da tres grupos con tres
+comportamientos distintos:
+
+| | Qué es | Qué hace el script |
+|---|---|---|
+| 🔴 **Irrecuperable** | No hay comando que lo reconstruya: credenciales, secretos de un despliegue, configuración escrita a mano | **Copiar.** Una copia que falla es fatal. Si falta en el origen, **avisar fuerte**: puede que nunca haya existido, pero el script no distingue eso de una pérdida |
+| 🟠 **Caro pero automático** | Un comando lo rehace, pero cuesta horas o decenas de MB: estado de sync, cachés grandes, dependencias | **Copiar si está.** Si no, nombrar el comando **y su precio** |
+| 🟢 **Regenerable** | Segundos: salida del compilador, assets copiados por un build | **No copiar.** Sólo decir el comando |
+
+**Medido en un proyecto real**: el grupo verde eran 36 MB que el script copiaba
+al pedo — un build los reproduce idénticos en segundos. Y mientras tanto tres
+items del grupo rojo estaban marcados como "opcionales", así que su ausencia se
+iba a un renglón de skips que nadie lee.
+
+**El grupo rojo es el único que justifica el script.** El naranja se dispara solo
+y el verde ni se toca. Con esa clasificación, el worktree limpio deja de ser la
+opción cara.
+
+> 🔴 **Y una regla no negociable, para el subconjunto cuya ausencia es MUDA:**
+> si falta, el script **falla ruidoso**. No lo saltea. Un `.env` ausente no da
+> error — típicamente el cargador se traga la excepción y un default elige el
+> entorno, así que la app corre contra la configuración equivocada devolviendo
+> datos que se ven válidos. **El silencio de un guard es indistinguible de su
+> aprobación.**
+>
+> Cuando busques estos casos, buscá **dos cosas encadenadas**: un `catch` vacío
+> y, aguas abajo, un `?? valorPorDefecto`. Cada uno por separado parece
+> razonable; juntos convierten un archivo faltante en un entorno equivocado sin
+> una sola línea de aviso.
 
 ### 🔴 `node_modules` se instala por worktree. Nunca se comparte
 

@@ -104,6 +104,66 @@ control.
 **De ahí sale la regla dura del script**: si falta un item requerido, **falla
 ruidoso**. El silencio de un guard es indistinguible de su aprobación.
 
+### 3.b · El eje no es "hace falta", es "cuánto cuesta recuperarlo"
+
+**Corregido el 10-ago-2026, después de una revisión externa. Supersede el
+criterio de la entrada 3.**
+
+La primera versión del script trataba los nueve items como una lista plana con
+un flag binario `Required` sí/no. **Ése era el eje equivocado**: casi todo hace
+falta, así que la pregunta no discrimina. Dos consecuencias, las dos medidas:
+
+1. **Copiaba 36 MB al pedo** — `src/managed` (18 MB) y `public/zk` (18 MB), que
+   un build reproduce idénticos en segundos.
+2. **Peor: tres items irrecuperables estaban marcados como opcionales** —
+   `subjects.*.json`, `deployment.*.json` y `midnight-level-db/`. Si faltaban, el
+   script seguía y los mandaba a un renglón de *skips*. Y `subjects.*.json` es lo
+   único que puede reconstruir los nullifiers de una credencial: la cadena no
+   liga una denuncia a nadie, a propósito.
+
+El eje correcto es **el costo de recuperación**, y da tres grupos con tres
+comportamientos:
+
+| | Qué | Comportamiento |
+|---|---|---|
+| 🔴 Irrecuperable | `subjects.*.json`, `deployment.*.json`, `.env*`, `midnight-level-db/` | copiar; copia fallida = fatal; ausencia = **aviso fuerte** |
+| 🟠 Caro pero automático | `.wallet-state/` (2-3 h), `.zk-params/` (33 MB), `node_modules/` | copiar si está; si no, nombrar comando **y precio** |
+| 🟢 Regenerable | `src/managed/`, `public/zk/`, `dist/` | **no copiar**, sólo decir el comando |
+
+**El grupo rojo es el único que justifica el script.** Con eso, el worktree
+limpio deja de ser la opción cara — que era el problema entero de la entrada 3.
+
+Un matiz que la clasificación deja abierto y conviene decidir explícitamente:
+dentro del rojo, **copiar y linkear no son equivalentes**. Copiar
+`subjects.*.json` a N worktrees permite que dos diverjan y que la copia que
+pierde desaparezca; linkear mantiene una sola. Pero un LevelDB linkeado no
+soporta dos procesos a la vez. Hoy el script **copia**; la alternativa está
+registrada acá para que no se redescubra.
+
+### 3.c · El `.env` fantasma: dos fallbacks silenciosos encadenados
+
+**Medido el 10-ago-2026**, y el mecanismo es peor de lo que decía la entrada 3.
+
+Había **dos `.env` byte-idénticos**, 404 bytes cada uno, con la misma fecha al
+segundo: uno en la raíz del repo y otro en `contracts/`. El de la raíz **no lo
+lee nadie**. Pero la falla no es muda una vez, es muda **dos**:
+
+```ts
+try { process.loadEnvFile(resolve(PKG_ROOT, '.env')); }
+catch { /* sólo un comentario */ }
+...
+const networkId = env.MN_NETWORK ?? 'undeployed';
+```
+
+El `catch` vacío se traga que el archivo no exista; el `??` elige la red local.
+Cada uno por separado es defendible. **Encadenados convierten "falta un archivo"
+en "estás corriendo contra otra red" sin una sola línea de aviso** — y como las
+dos redes comparten formato de dirección, la equivocada responde con datos que
+se ven válidos.
+
+**Patrón para buscar esta familia en cualquier código**: un `catch` vacío y,
+aguas abajo, un `?? default`. No busques uno solo; buscá el par.
+
 ---
 
 ## 4 · `node_modules` nunca se comparte entre worktrees
